@@ -58,13 +58,13 @@ class OutputVideo:
     def __init__(self,
                  outfile,
                  clips,
-                 x,
-                 y,
-                 fps,
-                 video_codec,
-                 crf,
-                 audio_codec,
-                 audio_bitrate):
+                 x=None,
+                 y=None,
+                 fps=None,
+                 video_codec=DEFAULT_VIDEO_CODEC,
+                 crf=DEFAULT_CRF,
+                 audio_codec=DEFAULT_AUDIO_CODEC,
+                 audio_bitrate=DEFAULT_AUDIO_BITRATE):
         self.output_file = outfile
         self.x = x
         self.y = y
@@ -80,7 +80,7 @@ class OutputVideo:
         self.files = self._input_streams(list({c.infile for c in self.clips}))
 
     @classmethod
-    def from_file(cls, f, output_file = None, overwrite=False):
+    def from_file(cls, f, output_file = None):
         vidspec = toml.load(f)
         try:
             output = vidspec['output']
@@ -119,7 +119,7 @@ class OutputVideo:
             inputs.append(f'{f}')
         return inputs
 
-    def filter_script(self, scale=True, pad=True, set_fps=True):
+    def filter_script(self, scale=True, set_fps=True):
         filter = ''
         for s in self.files.values():
             fid = s['fileid']
@@ -135,15 +135,13 @@ class OutputVideo:
             x = self.x
             y = self.y
             fps = self.fps
-
             for c in s["clips"]:
-                filter += f'[v{c.seq}]select=\'between(t\,{c.start}\,{c.stop})\','
-                if scale:
+                filter += f'[v{c.seq}]select=\'between(t\\,{c.start}\\,{c.stop})\','
+                if scale and self.x and self.y:
                     filter += f'scale={x}:{y}:force_original_aspect_ratio=decrease,'
-                if pad:
                     filter += f'pad={x}:{y}:-1:-1:color=black,'
                 filter += f'setpts=N/FRAME_RATE/TB,'
-                if set_fps:
+                if set_fps and self.fps:
                     filter += f'fps={fps},'
                 filter += f'fifo[{c.seq}v];\n'
 
@@ -154,7 +152,7 @@ class OutputVideo:
             filter += ''.join(splits) + ';\n'
         
             for c in s["clips"]:
-                filter += f'[a{c.seq}]aselect=\'between(t\,{c.start}\,{c.stop})\','
+                filter += f'[a{c.seq}]aselect=\'between(t\\,{c.start}\\,{c.stop})\','
                 filter += f'asetpts=N/SR/TB,afifo[{c.seq}a];\n'
 
         n_clip = len(self.clips)
@@ -174,6 +172,7 @@ class OutputVideo:
         cmd += ['-acodec', self.audio_codec]
         if self.audio_bitrate:
             cmd += ['-b:a', str(self.audio_bitrate)]
+        #cmd += ['-max_muxing_queue_size', '9999']
         cmd += [self.output_file]
         return cmd
 
@@ -198,37 +197,28 @@ class OutputVideo:
 main = typer.Typer()
 
 @main.command()
-def compile(vidspec: str,
-            output: Annotated[Optional[str], typer.Argument()] = None,
-            overwrite: Annotated[bool, typer.Option("--overwrite")] = False,
-            test: Annotated[bool, typer.Option("--test")] = False):
-    v = OutputVideo.from_file(vidspec, output_file=output)
+def render(project_file: str, # "vidspec TOML"
+           output: Annotated[Optional[str], typer.Argument()] = None,
+           overwrite: Annotated[bool, typer.Option("--overwrite")] = False,
+           test: Annotated[bool, typer.Option("--test")] = False):
+    v = OutputVideo.from_file(project_file, output_file=output)
     if test:
         logger.setLevel(logging.DEBUG)
         ch.setLevel(logging.DEBUG)
     v.run(overwrite, test)
 
 @main.command()
-def extract(input: str, start: str, end: str, output: str):
-    pass
-
-"""
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--version",
-        action="version",
-        version="%(prog)s (version {version})".format(version=__version__))
-    parser.add_argument("vidspec", help="Video specification TOML file")
-    parser.add_argument("-o", "--output", action="store", dest="output")
-    parser.add_argument("--overwrite", action="store_true", dest="overwrite", default=False)
-    parser.add_argument("--test", action="store_true", dest="test", default=False)
-    args = parser.parse_args()
-    if args.test:
+def extract(input: str,
+            start: str,
+            end: str,
+            output: Annotated[Optional[str], typer.Argument()] = DEFAULT_OUTPUT_FILE,
+            overwrite: Annotated[bool, typer.Option("--overwrite")] = False,
+            test: Annotated[bool, typer.Option("--test")] = False):
+    v = OutputVideo(output, [{'file': input, 'interval': [start, end]}])
+    if test:
         logger.setLevel(logging.DEBUG)
         ch.setLevel(logging.DEBUG)
-    v = OutputVideo.from_file(args.vidspec, output_file=args.output)
-    v.run(args.overwrite, args.test)
-"""
+    v.run(overwrite, test)
+
 if __name__ == "__main__":
     main()
