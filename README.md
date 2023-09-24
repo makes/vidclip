@@ -2,6 +2,14 @@
 
 Trim and merge videos using TOML.
 
+## Installation
+
+```
+$ pip install vidclip
+```
+
+Requires [FFmpeg](https://ffmpeg.org/).
+
 ## Example
 
 ### Video specification file
