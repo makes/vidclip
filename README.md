@@ -10,23 +10,23 @@ $ pip install vidclip
 
 Requires [FFmpeg](https://ffmpeg.org/).
 
-## Example
+## Examples
 
-### Video specification file
+### Rendering a TOML Project File
+
+`project.toml`:
 
 ```toml
-# vidspec.toml
+# Video project file for vidclip (https://github.com/makes/vidclip)
+# usage: vidclip render <filename>
 
 [output]
 path = "./out.mp4"
-
 x = 1920
 y = 1080
 fps = 29.97
-
 video_codec = "libx264"
 crf = 23  # Constant Rate Factor. Lower CRF -> higher quality (x264: 0-51, default 23)
-
 audio_codec = "aac"
 audio_bitrate = "256k"
 
@@ -44,8 +44,14 @@ file = "vid3.mov"
 interval=[ 0, 10 ]
 ```
 
-### Render
+Render command:
 
 ```
-$ vidclip vidspec.toml
+$ vidclip render project.toml output.mp4
+```
+
+### Extracting a Clip
+
+```
+$ vidclip extract input.mp4 00:20.222 00:28.458 output.mp4
 ```

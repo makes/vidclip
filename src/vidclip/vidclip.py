@@ -9,7 +9,7 @@ import typer
 from typing_extensions import Annotated
 
 __author__ = "makes"
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 __license__ = "MIT"
 
 DEFAULT_X = 1920
