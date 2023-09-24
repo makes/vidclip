@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vidclip"
-version = "0.1.0"
+version = "0.1.1"
 authors = [{name="makes"}]
 description = "Trim and merge videos using TOML"
 readme = "README.md"
-dependencies = []
+dependencies = ["toml", "typer"]
 requires-python = ">=3.9"
 
 [project.scripts]

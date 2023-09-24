@@ -1,12 +1,15 @@
 import os
-import argparse
 import logging
 import tempfile
-import toml
 import subprocess
+import toml
+
+from typing import Optional
+import typer
+from typing_extensions import Annotated
 
 __author__ = "makes"
-__version__ = "0.0.1"
+__version__ = "0.1.1"
 __license__ = "MIT"
 
 DEFAULT_X = 1920
@@ -55,13 +58,13 @@ class OutputVideo:
     def __init__(self,
                  outfile,
                  clips,
-                 x=1920,
-                 y=1080,
-                 fps=29.97,
-                 video_codec="libx264",
-                 crf=23,
-                 audio_codec="aac",
-                 audio_bitrate="256k"):
+                 x,
+                 y,
+                 fps,
+                 video_codec,
+                 crf,
+                 audio_codec,
+                 audio_bitrate):
         self.output_file = outfile
         self.x = x
         self.y = y
@@ -116,7 +119,7 @@ class OutputVideo:
             inputs.append(f'{f}')
         return inputs
 
-    def filter_script(self):
+    def filter_script(self, scale=True, pad=True, set_fps=True):
         filter = ''
         for s in self.files.values():
             fid = s['fileid']
@@ -135,9 +138,14 @@ class OutputVideo:
 
             for c in s["clips"]:
                 filter += f'[v{c.seq}]select=\'between(t\,{c.start}\,{c.stop})\','
-                filter += f'scale={x}:{y}:force_original_aspect_ratio=decrease,'
-                filter += f'pad={x}:{y}:-1:-1:color=black,'
-                filter += f'setpts=N/FRAME_RATE/TB,fps={fps},fifo[{c.seq}v];\n'
+                if scale:
+                    filter += f'scale={x}:{y}:force_original_aspect_ratio=decrease,'
+                if pad:
+                    filter += f'pad={x}:{y}:-1:-1:color=black,'
+                filter += f'setpts=N/FRAME_RATE/TB,'
+                if set_fps:
+                    filter += f'fps={fps},'
+                filter += f'fifo[{c.seq}v];\n'
 
             # audio
             sp = f'asplit={n_split}' if n_split >= 2 else 'anull'
@@ -160,8 +168,12 @@ class OutputVideo:
         cmd = ['ffmpeg', '-nostdin'] + self.input_list()
         cmd += ['-filter_complex_script', filter_script]
         cmd += ['-map', '[outv]', '-map', '[outa]']
-        cmd += ['-vcodec', self.video_codec, '-crf', str(self.crf)]
-        cmd += ['-acodec', self.audio_codec, '-b:a', str(self.audio_bitrate)]
+        cmd += ['-vcodec', self.video_codec]
+        if self.crf:
+            cmd += ['-crf', str(self.crf)]
+        cmd += ['-acodec', self.audio_codec]
+        if self.audio_bitrate:
+            cmd += ['-b:a', str(self.audio_bitrate)]
         cmd += [self.output_file]
         return cmd
 
@@ -183,7 +195,24 @@ class OutputVideo:
                         os.unlink(self.output_file)
                 subprocess.run(cmd)
 
+main = typer.Typer()
 
+@main.command()
+def compile(vidspec: str,
+            output: Annotated[Optional[str], typer.Argument()] = None,
+            overwrite: Annotated[bool, typer.Option("--overwrite")] = False,
+            test: Annotated[bool, typer.Option("--test")] = False):
+    v = OutputVideo.from_file(vidspec, output_file=output)
+    if test:
+        logger.setLevel(logging.DEBUG)
+        ch.setLevel(logging.DEBUG)
+    v.run(overwrite, test)
+
+@main.command()
+def extract(input: str, start: str, end: str, output: str):
+    pass
+
+"""
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -200,6 +229,6 @@ def main():
         ch.setLevel(logging.DEBUG)
     v = OutputVideo.from_file(args.vidspec, output_file=args.output)
     v.run(args.overwrite, args.test)
-
+"""
 if __name__ == "__main__":
     main()
